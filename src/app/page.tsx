@@ -1,59 +1,89 @@
-import { DidResolver, HandleResolver } from "@atproto/identity";
+"use client";
+
+import { DidResolver } from "@atproto/identity/dist/did/index";
+import { debounce, throttle } from "lodash";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const exampleUrl = "https://bsky.app/profile/maloo.ski/post/3l3j5rfe4w52g";
 const placeholderUrl = "at://did:plc:rodounzb7hsexmrbxmcodrbq/app.bsky.feed.post/3l3j5rfe4w52g";
 
-async function atprotoUriToBskyRUrl(uri: string) {
+function parseAtprotoUriParts(uri: string) {
     // at://did:plc:oejazvm3gdzx55pg4lyucan3/app.bsky.feed.post/3l2xute7zej2w
     const did = uri.split("/")[2];
-    const postId = uri.split("/")[4];
+    const action = uri.split("/")[3];
+    const cid = uri.split("/")[4];
 
-    console.log(did, postId);
+    return {
+        did: did,
+        cid: cid,
+        action: action,
+    };
+}
 
-    const resolver = new DidResolver({
-        plcUrl: "https://plc.directory",
-    });
-    const res = await resolver.resolve(did);
-    let handle = res?.alsoKnownAs?.[0];
-    if (!handle) {
-        throw new Error("Could not resolve handle");
+const resolver = new DidResolver({
+    plcUrl: "https://plc.directory",
+});
+
+async function resolveDid(did: string) {
+    if (!did) {
+        console.log("no did");
+        return null;
     }
 
-    // trim "at://" from handle
-    const handlePrefix = "at://";
-    if (handle.startsWith(handlePrefix)) {
-        handle = handle.slice(handlePrefix.length);
+    try {
+        const res = await resolver.resolve(did);
+
+        let handle = res?.alsoKnownAs?.[0];
+        if (!handle) {
+            console.log("no handle");
+            return null;
+        }
+
+        // trim "at://" from handle
+        const handlePrefix = "at://";
+        if (handle.startsWith(handlePrefix)) {
+            handle = handle.slice(handlePrefix.length);
+        }
+
+        return handle;
+    } catch (e) {
+        console.error(e);
+        return null;
     }
+}
 
-    console.log(handle, postId);
-
-    return `https://bsky.app/profile/${handle}/post/${postId}`;
+function buildBskyUrl(handle: string, cid: string) {
+    return `https://bsky.app/profile/${handle}/post/${cid}`;
 }
 
 export default function Home() {
-    async function redirectToBskyUrl(formData: FormData) {
-        "use server";
+    "use client";
 
-        let url = formData.get("url") as string;
-        url = url.trim();
+    const [url, setUrl] = useState<string>("");
+    const [handle, setHandle] = useState<string>("");
+    const [cid, setCid] = useState<string>("");
 
-        if (url.startsWith('"') || url.startsWith("'")) {
-            url = url.slice(1, -1);
-        }
+    useEffect(() => {
+        console.log("url", url);
+        const parts = parseAtprotoUriParts(url);
+        setCid(parts.cid);
+        setHandle("");
 
-        if (url.endsWith('"') || url.endsWith("'")) {
-            url = url.slice(0, -1);
-        }
+        resolveDid(parts.did).then((handle) => {
+            console.log("handle", handle);
+            if (!handle) return;
+            setHandle(handle);
+        });
+    }, [url]);
 
-        if (!url) {
-            throw new Error("No URL provided");
-        }
-
-        const bskyUrl = await atprotoUriToBskyRUrl(url);
-        redirect(bskyUrl);
+    let bskyUrl = "";
+    let buttonText = "Enter a URL";
+    if (handle) {
+        bskyUrl = buildBskyUrl(handle, cid);
+        buttonText = `Go to ${handle}'s post`;
     }
 
     return (
@@ -68,8 +98,10 @@ export default function Home() {
                 </a>
             </div>
 
-            <form action={redirectToBskyUrl} className="flex flex-col gap-4 min-w-[300px]">
+            <form className="flex flex-col gap-4 min-w-[300px]">
                 <input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
                     className="border border-gray-300 rounded-md p-2"
                     name="url"
                     type="text"
@@ -81,9 +113,15 @@ export default function Home() {
                         <span className="font-mono text-xs">{placeholderUrl}</span>
                     </div>
                 </a>
-                <button className="bg-blue-500 text-white px-4 py-2 rounded-md" type="submit">
-                    Go!
-                </button>
+                <a
+                    href={bskyUrl || "#"}
+                    target="_blank"
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors text-center"
+                    type="submit"
+                    rel="noreferrer"
+                >
+                    {buttonText}
+                </a>
             </form>
         </div>
     );

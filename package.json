@@ -13,12 +13,14 @@
     "@atproto/identity": "^0.4.1",
     "@atproto/lex-cli": "^0.5.0",
     "@atproto/repo": "^0.4.3",
+    "lodash": "^4.17.21",
     "next": "14.2.8",
     "react": "^18",
     "react-dom": "^18"
   },
   "devDependencies": {
     "@biomejs/biome": "1.8.3",
+    "@types/lodash": "^4.17.7",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
